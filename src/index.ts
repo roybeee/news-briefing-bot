@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import { loadConfig, createLogger } from './config/index.js'
 import { loadKeywords } from './keywords/keywordManager.js'
 import { fetchAllNews } from './news/fetcher.js'
@@ -110,19 +111,25 @@ async function main() {
   }
 
   // 6. Send KakaoTalk message
-  const { accessToken, newRefreshToken } = await getAccessToken(
-    config.KAKAO_REST_API_KEY,
-    config.KAKAO_REFRESH_TOKEN,
-    logger,
-  )
-
   const message = buildFeedMessage(dateString, keywordBriefings, imageUrl)
-  await sendKakaoMessage(accessToken, message, logger, config.DRY_RUN)
 
-  // 7. Export new refresh token for GitHub Actions via GITHUB_ENV
-  if (newRefreshToken && process.env.GITHUB_ENV) {
-    const { appendFileSync } = await import('node:fs')
-    appendFileSync(process.env.GITHUB_ENV, `NEW_REFRESH_TOKEN=${newRefreshToken}\n`)
+  if (config.DRY_RUN) {
+    logger.info('send', 'DRY_RUN: Skipping Kakao token refresh and message send')
+    logger.debug('send', 'Message payload:', { payload: JSON.stringify(message, null, 2) })
+  } else {
+    const { accessToken, newRefreshToken } = await getAccessToken(
+      config.KAKAO_REST_API_KEY,
+      config.KAKAO_REFRESH_TOKEN,
+      logger,
+    )
+
+    await sendKakaoMessage(accessToken, message, logger, false)
+
+    // 7. Export new refresh token for GitHub Actions via GITHUB_ENV
+    if (newRefreshToken && process.env.GITHUB_ENV) {
+      const { appendFileSync } = await import('node:fs')
+      appendFileSync(process.env.GITHUB_ENV, `NEW_REFRESH_TOKEN=${newRefreshToken}\n`)
+    }
   }
 
   logger.info('main', 'Pipeline completed successfully', {

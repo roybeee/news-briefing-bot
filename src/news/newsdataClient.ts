@@ -16,9 +16,10 @@ function toNewsArticle(item: NewsdataArticle, keyword: string): NewsArticle {
   }
 }
 
-function getYesterdayDate(): string {
-  const d = new Date(Date.now() - 24 * 60 * 60 * 1000)
-  return d.toISOString().split('T')[0]!
+function isWithin24Hours(pubDate: string): boolean {
+  const published = new Date(pubDate)
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000)
+  return published >= cutoff
 }
 
 export async function fetchNewsdataNews(
@@ -31,7 +32,6 @@ export async function fetchNewsdataNews(
   url.searchParams.set('apikey', config.apiKey)
   url.searchParams.set('q', keyword)
   url.searchParams.set('language', 'en,ja')
-  url.searchParams.set('from_date', getYesterdayDate())
   url.searchParams.set('size', String(maxArticles))
 
   logger.debug('fetch', `NewsData.io API request for "${keyword}"`)
@@ -50,7 +50,9 @@ export async function fetchNewsdataNews(
     throw new Error(`NewsData.io API returned status: ${data.status}`)
   }
 
-  const articles = (data.results ?? []).map((item) => toNewsArticle(item, keyword))
+  const articles = (data.results ?? [])
+    .filter((item) => isWithin24Hours(item.pubDate))
+    .map((item) => toNewsArticle(item, keyword))
 
   logger.info('fetch', `NewsData.io: ${articles.length} articles for "${keyword}"`, {
     total: data.totalResults,
